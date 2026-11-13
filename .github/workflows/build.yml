@@ -68,7 +68,8 @@ jobs:
             echo "Release v$VERSION gibt es schon – keine neue Version, nur bauen."
             exit 0
           fi
-          LETZTES=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2> /dev/null || true)
+          # Ohne Release antwortet GitHub mit „Not Found“ (und schreibt die Meldung in die Ausgabe).
+          if ! LETZTES=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2> /dev/null); then LETZTES=""; fi
           if [ -z "$LETZTES" ] || [ "$LETZTES" = "null" ]; then
             echo "Noch kein Release vorhanden."
             exit 0
