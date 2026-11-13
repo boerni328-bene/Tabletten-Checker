@@ -4,11 +4,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -47,6 +52,8 @@ import com.tablettenchecker.app.data.StockCalculator.Level
 fun OverviewScreen(
     medications: List<Medication>,
     nowMillis: Long,
+    compact: Boolean,
+    onToggleCompact: () -> Unit,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
     onAddPack: (String) -> Unit,
@@ -60,13 +67,30 @@ fun OverviewScreen(
     var packFor by remember { mutableStateOf<Medication?>(null) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAdd,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.add_medication)) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    // Die Schaltfläche nennt die Ansicht, zu der sie wechselt.
+                    TextButton(onClick = onToggleCompact) {
+                        Text(stringResource(if (compact) R.string.view_cards else R.string.view_compact))
+                    }
+                },
             )
+        },
+        floatingActionButton = {
+            if (compact) {
+                // Klein, damit sie in der kompakten Ansicht möglichst wenig verdeckt.
+                FloatingActionButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_medication))
+                }
+            } else {
+                ExtendedFloatingActionButton(
+                    onClick = onAdd,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.add_medication)) },
+                )
+            }
         },
     ) { padding ->
         if (rows.isEmpty()) {
@@ -79,6 +103,22 @@ fun OverviewScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                 )
+            }
+        } else if (compact) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 8.dp,
+                    end = 8.dp,
+                    top = padding.calculateTopPadding(),
+                    bottom = padding.calculateBottomPadding() + 80.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                item(key = "kopfzeile") { CompactHeader() }
+                items(rows, key = { it.first.id }) { (medication, status) ->
+                    CompactRow(medication = medication, status = status, onClick = { onEdit(medication.id) })
+                }
             }
         } else {
             LazyColumn(
@@ -185,6 +225,131 @@ private fun MedicationCard(
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = onAddPack) { Text(stringResource(R.string.add_pack)) }
             }
+        }
+    }
+}
+
+private val STOCK_WIDTH = 60.dp
+private val DAYS_WIDTH = 48.dp
+private val REORDER_WIDTH = 76.dp
+
+/** Spaltenüberschriften der kompakten Ansicht. */
+@Composable
+private fun CompactHeader() {
+    val style = MaterialTheme.typography.labelMedium
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.col_name), style = style, color = color, modifier = Modifier.weight(1f))
+        Text(
+            stringResource(R.string.col_stock),
+            style = style,
+            color = color,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            modifier = Modifier.width(STOCK_WIDTH),
+        )
+        Text(
+            stringResource(R.string.col_days),
+            style = style,
+            color = color,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            modifier = Modifier.width(DAYS_WIDTH),
+        )
+        Text(
+            stringResource(R.string.col_reorder),
+            style = style,
+            color = color,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            modifier = Modifier.width(REORDER_WIDTH),
+        )
+    }
+}
+
+/** Eine Tablette als Zeile: Name, Bestand, Tage Reichweite, Nachkauf-Datum. */
+@Composable
+private fun CompactRow(
+    medication: Medication,
+    status: StockCalculator.Status,
+    onClick: () -> Unit,
+) {
+    val urgent = status.level == Level.EMPTY || status.level == Level.REORDER
+    val container = when (status.level) {
+        Level.EMPTY -> MaterialTheme.colorScheme.errorContainer
+        Level.REORDER -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainer
+    }
+    val content = when (status.level) {
+        Level.EMPTY -> MaterialTheme.colorScheme.onErrorContainer
+        Level.REORDER -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val doses = stringResource(
+        R.string.dose_short,
+        formatAmount(medication.morning),
+        formatAmount(medication.evening),
+    )
+    val reorderBy = status.reorderBy
+    val reorder = when {
+        urgent -> stringResource(R.string.reorder_now_short)
+        reorderBy != null -> formatDateShort(reorderBy)
+        else -> "–"
+    }
+    Surface(
+        onClick = onClick,
+        color = container,
+        contentColor = content,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = medication.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (medication.note.isBlank()) doses else "$doses · ${medication.note}",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = formatAmount(status.current),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.width(STOCK_WIDTH),
+            )
+            Text(
+                text = when {
+                    status.level == Level.EMPTY -> "0"
+                    else -> status.daysLeft?.toString() ?: "–"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.width(DAYS_WIDTH),
+            )
+            Text(
+                text = reorder,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (urgent) FontWeight.Bold else FontWeight.Normal,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.width(REORDER_WIDTH),
+            )
         }
     }
 }

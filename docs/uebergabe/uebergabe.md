@@ -1,11 +1,13 @@
 # Tabletten-Checker – Übergabe (einzige Datei, wird laufend überschrieben)
 
-Stand: 13.11.2026 · `main` = Version 0.1.0 (versionCode 1) · Regeln in `CLAUDE.md`, Verlauf in Git und `CHANGELOG.md`.
+Stand: 13.11.2026 · `main` = Version 0.2.0 (versionCode 2) · Regeln in `CLAUDE.md`, Verlauf in Git und `CHANGELOG.md`.
 
 ## Projekt in drei Sätzen
 Tabletten-Checker: Android-App (Kotlin, Compose, `com.tablettenchecker.app`, ab Android 8), die Bestand, Reichweite und Nachkauf der täglichen Tabletten (morgens/abends) zeigt, lokal gespeichert, ohne Cloud. Repository `boerni328-bene/Tabletten-Checker` (öffentlich), Verteilung über GitHub Releases und Obtainium. Gebaut nur über GitHub Actions, Vorbild ist Moltobene (`D:\Claude\Projekte\Moltobene`).
 
-## Stand 0.1.0
+## Stand 0.2.0 (versionCode 2)
+- Inhaber hat 0.1.0 über Obtainium installiert und alle Tabletten eingetragen (13.11.2026).
+- Neu in 0.2.0: kompakte Ansicht (Tabelle, eine Zeile je Tablette; Umschalter „Kompakt“/„Karten“ oben rechts, gemerkt in SharedPreferences `einstellungen`/`kompakt`). „Packung hinzufügen“ gibt es nur in der Kartenansicht.
 - Übersicht (dringendste Tablette oben, farbig bei „Jetzt nachkaufen“/aufgebraucht), Tablette hinzufügen/bearbeiten/löschen, „Packung hinzufügen“.
 - Bestand zählt selbst herunter: feste Zeiten 8 Uhr und 20 Uhr, Vorlauf für den Nachkauf fest 14 Tage (`StockCalculator.MORNING/EVENING/LEAD_DAYS`).
 - Daten: `tabletten.json` im App-Ordner (kotlinx.serialization, `MedicationFile.version = 1`). Android-Cloud-Sicherung aus (`allowBackup=false`).

@@ -6,6 +6,8 @@ import kotlin.math.floor
 import kotlin.math.roundToLong
 
 private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+private val DATE_SHORT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.")
+private val DATE_SHORT_YEAR: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yy")
 
 /** Stückzahl ohne überflüssige Nachkommastellen, mit Komma: 3, 0,5, 1,25. */
 fun formatAmount(value: Double): String {
@@ -22,3 +24,7 @@ fun parseAmount(text: String): Double? {
 }
 
 fun formatDate(date: LocalDate): String = date.format(DATE)
+
+/** Kurzes Datum für die kompakte Ansicht: 04.12. (mit Jahr, wenn es nicht das laufende ist: 04.01.27). */
+fun formatDateShort(date: LocalDate, today: LocalDate = LocalDate.now()): String =
+    date.format(if (date.year == today.year) DATE_SHORT else DATE_SHORT_YEAR)

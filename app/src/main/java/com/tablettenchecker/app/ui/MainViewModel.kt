@@ -1,6 +1,7 @@
 package com.tablettenchecker.app.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Zeitpunkt, für den die Übersicht rechnet; wird bei jedem Öffnen der App erneuert. */
     var now by mutableLongStateOf(System.currentTimeMillis())
         private set
+
+    private val settings = application.getSharedPreferences("einstellungen", Context.MODE_PRIVATE)
+
+    /** Kompakte Ansicht (eine Zeile je Tablette) statt Karten; bleibt gemerkt. */
+    var compact by mutableStateOf(settings.getBoolean("kompakt", false))
+        private set
+
+    fun toggleCompact() {
+        compact = !compact
+        settings.edit().putBoolean("kompakt", compact).apply()
+    }
 
     fun refreshNow() {
         now = System.currentTimeMillis()

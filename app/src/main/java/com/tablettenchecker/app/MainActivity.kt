@@ -35,6 +35,8 @@ class MainActivity : ComponentActivity() {
                     OverviewScreen(
                         medications = viewModel.medications,
                         nowMillis = viewModel.now,
+                        compact = viewModel.compact,
+                        onToggleCompact = { viewModel.toggleCompact() },
                         onAdd = { editing = NEW },
                         onEdit = { editing = it },
                         onAddPack = { viewModel.addPack(it) },

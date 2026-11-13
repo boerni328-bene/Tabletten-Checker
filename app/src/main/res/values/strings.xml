@@ -25,6 +25,16 @@
     <string name="add_pack_title">Packung hinzufügen?</string>
     <string name="add_pack_text">Der Bestand von „%1$s“ steigt um %2$s Stück.</string>
 
+    <!-- Kompakte Ansicht -->
+    <string name="view_compact">Kompakt</string>
+    <string name="view_cards">Karten</string>
+    <string name="col_name">Tablette · morgens–abends</string>
+    <string name="col_stock">Bestand</string>
+    <string name="col_days">Tage</string>
+    <string name="col_reorder">Nachkauf</string>
+    <string name="reorder_now_short">jetzt</string>
+    <string name="dose_short">%1$s–%2$s</string>
+
     <!-- Bearbeiten -->
     <string name="title_new">Tablette hinzufügen</string>
     <string name="title_edit">Tablette bearbeiten</string>
