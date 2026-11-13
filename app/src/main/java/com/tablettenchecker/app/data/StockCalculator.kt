@@ -13,14 +13,25 @@ import kotlin.math.roundToLong
 /** Rechnet Bestand, Reichweite und Nachkauf aus dem Einnahmeplan aus. Reine Rechnung, ohne Android. */
 object StockCalculator {
 
-    /** Ab dieser Uhrzeit gilt die Einnahme morgens als genommen. */
-    val MORNING: LocalTime = LocalTime.of(8, 0)
+    /** Uhrzeiten der Einnahme und Standard-Vorlauf (aus den Einstellungen). */
+    data class Plan(
+        val morning: LocalTime = LocalTime.of(8, 0),
+        val noon: LocalTime = LocalTime.of(12, 0),
+        val evening: LocalTime = LocalTime.of(20, 0),
+        val leadDays: Int = 14,
+    ) {
+        companion object {
+            fun of(settings: AppSettings) = Plan(
+                morning = time(settings.morningMinutes),
+                noon = time(settings.noonMinutes),
+                evening = time(settings.eveningMinutes),
+                leadDays = settings.leadDays,
+            )
 
-    /** Ab dieser Uhrzeit gilt die Einnahme abends als genommen. */
-    val EVENING: LocalTime = LocalTime.of(20, 0)
-
-    /** So viele Tage vor dem Aufbrauchen soll nachgekauft sein. */
-    const val LEAD_DAYS = 14L
+            private fun time(minutes: Int): LocalTime =
+                LocalTime.of((minutes / 60).coerceIn(0, 23), (minutes % 60).coerceIn(0, 59))
+        }
+    }
 
     private const val MAX_DAYS = 3660
     private const val EPS = 1e-6
@@ -39,32 +50,50 @@ object StockCalculator {
         val level: Level,
         /** So viele Tage reicht eine Packung; null ohne Packungsgröße oder Einnahme. */
         val packDays: Int?,
+        /** Vorlauf, der für diese Tablette gilt. */
+        val leadDays: Int,
     )
 
+    /** Durchschnittlicher Verbrauch pro Tag (bei „alle 2 Tage“ die Hälfte einer Tagesmenge). */
+    fun dailyAverage(med: Medication): Double =
+        (med.morning + med.noon + med.evening) / max(1, med.everyDays)
+
+    fun isDoseDay(med: Medication, day: LocalDate): Boolean =
+        med.everyDays <= 1 || Math.floorMod(day.toEpochDay() - med.anchorDay, med.everyDays.toLong()) == 0L
+
     /** Bestand jetzt: gezählter Bestand minus alle Einnahmen seit der Zählung. */
-    fun currentStock(med: Medication, nowMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Double {
-        val from = toLocal(med.stockAt, zone)
-        val to = toLocal(nowMillis, zone)
-        val used = doses(from, to, MORNING) * med.morning + doses(from, to, EVENING) * med.evening
+    fun currentStock(
+        med: Medication,
+        nowMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        plan: Plan = Plan(),
+    ): Double {
+        val used = used(med, toLocal(med.stockAt, zone), toLocal(nowMillis, zone), plan)
         return round2(max(0.0, med.stock - used))
     }
 
-    fun status(med: Medication, nowMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Status {
-        val current = currentStock(med, nowMillis, zone)
-        val daily = med.morning + med.evening
-        if (daily <= 0.0) {
-            return Status(current, null, null, null, Level.NO_PLAN, null)
+    fun status(
+        med: Medication,
+        nowMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        plan: Plan = Plan(),
+    ): Status {
+        val current = currentStock(med, nowMillis, zone, plan)
+        val lead = (med.leadDays ?: plan.leadDays).coerceAtLeast(0)
+        val slots = slots(med, plan)
+        if (slots.isEmpty()) {
+            return Status(current, null, null, null, Level.NO_PLAN, null, lead)
         }
-        val packDays = if (med.packSize > 0) floor(med.packSize / daily + EPS).toInt() else null
+        val packDays = if (med.packSize > 0) floor(med.packSize / dailyAverage(med) + EPS).toInt() else null
 
         val now = toLocal(nowMillis, zone)
         val today = now.toLocalDate()
-        val plan = listOf(MORNING to med.morning, EVENING to med.evening).filter { it.second > 0.0 }
         var remaining = current
         var emptyOn: LocalDate? = null
         search@ for (offset in 0..MAX_DAYS) {
             val day = today.plusDays(offset.toLong())
-            for ((time, dose) in plan) {
+            if (!isDoseDay(med, day)) continue
+            for ((time, dose) in slots) {
                 if (!day.atTime(time).isAfter(now)) continue
                 if (remaining + EPS < dose) {
                     emptyOn = day
@@ -74,25 +103,45 @@ object StockCalculator {
             }
         }
         if (emptyOn == null) {
-            return Status(current, null, null, null, Level.OK, packDays)
+            return Status(current, null, null, null, Level.OK, packDays, lead)
         }
 
         val daysLeft = ChronoUnit.DAYS.between(today, emptyOn).toInt()
-        val smallestDose = plan.minOf { it.second }
+        val smallestDose = slots.minOf { it.second }
         val level = when {
             daysLeft <= 0 || current + EPS < smallestDose -> Level.EMPTY
-            daysLeft <= LEAD_DAYS -> Level.REORDER
+            daysLeft <= lead -> Level.REORDER
             else -> Level.OK
         }
-        return Status(current, daysLeft, emptyOn, emptyOn.minusDays(LEAD_DAYS), level, packDays)
+        return Status(current, daysLeft, emptyOn, emptyOn.minusDays(lead.toLong()), level, packDays, lead)
     }
 
-    /** Zahl der Einnahmen zur Uhrzeit [time] nach [from] und bis einschließlich [to]. */
-    internal fun doses(from: LocalDateTime, to: LocalDateTime, time: LocalTime): Long {
-        if (!to.isAfter(from)) return 0
-        val first = if (from.toLocalTime() < time) from.toLocalDate() else from.toLocalDate().plusDays(1)
-        val last = if (to.toLocalTime() >= time) to.toLocalDate() else to.toLocalDate().minusDays(1)
-        return max(0L, ChronoUnit.DAYS.between(first, last) + 1)
+    /** Einnahmen des Tages mit Uhrzeit und Menge, nach Uhrzeit sortiert. */
+    private fun slots(med: Medication, plan: Plan): List<Pair<LocalTime, Double>> =
+        listOf(plan.morning to med.morning, plan.noon to med.noon, plan.evening to med.evening)
+            .filter { it.second > 0.0 }
+            .sortedBy { it.first }
+
+    /** Verbrauch nach [from] und bis einschließlich [to]. */
+    internal fun used(med: Medication, from: LocalDateTime, to: LocalDateTime, plan: Plan): Double {
+        if (!to.isAfter(from)) return 0.0
+        val slots = slots(med, plan)
+        if (slots.isEmpty()) return 0.0
+        // Nach über hundert Jahren ist sicher alles aufgebraucht.
+        if (ChronoUnit.DAYS.between(from.toLocalDate(), to.toLocalDate()) > 36600) return Double.MAX_VALUE
+        var sum = 0.0
+        var day = from.toLocalDate()
+        val last = to.toLocalDate()
+        while (!day.isAfter(last)) {
+            if (isDoseDay(med, day)) {
+                for ((time, dose) in slots) {
+                    val at = day.atTime(time)
+                    if (at.isAfter(from) && !at.isAfter(to)) sum += dose
+                }
+            }
+            day = day.plusDays(1)
+        }
+        return sum
     }
 
     private fun toLocal(millis: Long, zone: ZoneId): LocalDateTime =

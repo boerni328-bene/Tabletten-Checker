@@ -1,34 +1,33 @@
 # Tabletten-Checker – Übergabe (einzige Datei, wird laufend überschrieben)
 
-Stand: 13.11.2026 · `main` = Version 0.2.0 (versionCode 2) · Regeln in `CLAUDE.md`, Verlauf in Git und `CHANGELOG.md`.
+Stand: 13.11.2026 · `main` = Version 0.3.0 (versionCode 3) · Regeln in `CLAUDE.md`, Verlauf in Git und `CHANGELOG.md`.
 
 ## Projekt in drei Sätzen
-Tabletten-Checker: Android-App (Kotlin, Compose, `com.tablettenchecker.app`, ab Android 8), die Bestand, Reichweite und Nachkauf der täglichen Tabletten (morgens/abends) zeigt, lokal gespeichert, ohne Cloud. Repository `boerni328-bene/Tabletten-Checker` (öffentlich), Verteilung über GitHub Releases und Obtainium. Gebaut nur über GitHub Actions, Vorbild ist Moltobene (`D:\Claude\Projekte\Moltobene`).
+Tabletten-Checker: Android-App (Kotlin, Compose, `com.tablettenchecker.app`, ab Android 8), die Bestand, Reichweite und Nachkauf der täglichen Tabletten zeigt, lokal gespeichert, ohne Cloud. Repository `boerni328-bene/Tabletten-Checker` (öffentlich), Verteilung über GitHub Releases und Obtainium. Gebaut nur über GitHub Actions, Vorbild ist Moltobene (`D:\Claude\Projekte\Moltobene`).
 
-## Stand 0.2.0 (versionCode 2)
-- Inhaber hat 0.1.0 über Obtainium installiert und alle Tabletten eingetragen (13.11.2026).
-- Neu in 0.2.0: kompakte Ansicht (Tabelle, eine Zeile je Tablette; Umschalter „Kompakt“/„Karten“ oben rechts, gemerkt in SharedPreferences `einstellungen`/`kompakt`). „Packung hinzufügen“ gibt es nur in der Kartenansicht.
-- Übersicht (dringendste Tablette oben, farbig bei „Jetzt nachkaufen“/aufgebraucht), Tablette hinzufügen/bearbeiten/löschen, „Packung hinzufügen“.
-- Bestand zählt selbst herunter: feste Zeiten 8 Uhr und 20 Uhr, Vorlauf für den Nachkauf fest 14 Tage (`StockCalculator.MORNING/EVENING/LEAD_DAYS`).
-- Daten: `tabletten.json` im App-Ordner (kotlinx.serialization, `MedicationFile.version = 1`). Android-Cloud-Sicherung aus (`allowBackup=false`).
-- Build: `build.yml` mit Lint, Unit-Tests, signierter APK, Signatur- und Berechtigungsprüfung, Release. Noch **kein** Rundgang auf dem Emulator (keine Bildschirmfotos).
-- Signatur: Schlüssel in `D:\Claude\Projekte\Tabletten-Checker-Signatur` (PKCS12, Alias `tabletten`) und als vier Secrets auf GitHub.
+## Stand 0.3.0
+- Inhaber nutzt die App mit 7 Tabletten (0.2.0 auf dem Handy geprüft, 13.11.2026).
+- Übersicht: Auswahl Alle/Morgens/(Mittags)/Abends (gemerkt), Umschalter Kompakt/Karten (gemerkt), Hinweis „Nächster Einkauf bis …“ oben. Kompakt bei „Alle“ in Abschnitten nach erster Tageszeit, darin nach Namen; Karten nach Dringlichkeit.
+- Einnahmemengen als farbige Marken (`DoseChips` in `ui/DoseFilter.kt`, Farben `doseColors` in `ui/Theme.kt`).
+- Einkaufsliste (`ui/ShoppingScreen.kt`, Rechnung `data/Shopping.kt`): Vorrat `supplyDays` (Standard 90), gemeinsamer Termin = frühester Nachkauf + Tabletten, die bis `leadDays` danach fällig werden. Abhaken, Teilen als Text, „Als gekauft eintragen“.
+- Einstellungen (`ui/SettingsScreen.kt`): Uhrzeiten, Mittags an/aus, Vorlauf, Vorrat; Sichern/Wiederherstellen über den Android-Dateidialog (keine Berechtigung). Einstellungen liegen in `tabletten.json` (`MedicationFile.settings`) und kommen mit in die Sicherung. Uhrzeiten ändern schreibt vorher den Bestand fest.
+- Je Tablette optional: `everyDays`/`anchorDay` (alle n Tage), `leadDays` (eigener Vorlauf).
+- Daten: `MedicationFile.version = 1` (nur Felder mit Standardwerten ergänzt, alte Dateien bleiben lesbar).
+- Auf dem Handy noch nicht geprüft: alles aus 0.3.0.
 
 ## Entscheidungen (Inhaber, 13.11.2026)
 - Bestand automatisch herunterzählen, kein tägliches Abhaken.
 - Benachrichtigungen nur für den Nachkauf.
 - Repository öffentlich.
+- Vorschläge 1–5 umsetzen (Einkaufsliste, eigener Vorlauf nur optional, gemeinsamer Einkauf, Sichern, Einstellungen); kompakte Ansicht nach Tageszeit mit Auswahl und farbigen Mengen.
 
-## Offen / nächste Schritte (Vorschlag, Reihenfolge mit dem Inhaber klären)
-1. Inhaber installiert 0.1.0 über Obtainium und prüft auf dem Handy; Signaturordner zusätzlich sichern.
-2. Nachkauf-Hinweis als Benachrichtigung (braucht Berechtigung `POST_NOTIFICATIONS` → Freigabe und Erlaubt-Liste in `build.yml`).
-3. Einstellungen: Uhrzeiten morgens/abends, Vorlauf in Tagen.
-4. Einkaufsliste „Was muss ich kaufen“ (wie viele Packungen bis zu einem Wunschvorrat), zum Teilen/Mitnehmen in die Apotheke.
-5. Sichern und wiederherstellen (Datei), Umzug auf ein neues Handy.
-6. Rundgang auf dem Emulator mit Bildschirmfotos (wie Moltobene).
+## Offen / nächste Schritte
+1. Inhaber prüft 0.3.0 auf dem Handy (besonders: Lesbarkeit der farbigen Marken, Einkaufsliste, Sichern).
+2. Nachkauf-Hinweis als Benachrichtigung: braucht `POST_NOTIFICATIONS` (und für tägliche Prüfung z. B. WorkManager, der weitere Berechtigungen mitbringt) → vorher Freigabe einholen, Erlaubt-Liste in `build.yml` ergänzen.
+3. Rundgang auf dem Emulator mit Bildschirmfotos (wie Moltobene).
 Offene Fragen: Lizenz (Moltobene: GPL-3.0), Englisch als zweite Sprache nötig?
 
 ## Arbeitsweise
-- Push auf `main` baut (ca. 5–10 Minuten ohne Emulator); neue `versionName` + CHANGELOG-Abschnitt ergibt ein Release.
-- Fehler: `gh run view <id> --log-failed`; Lint-Bericht als Artefakt `lint-bericht-<version>`.
-- Windows: Mehrzeiliges mit Umlauten per Write-Werkzeug; `gradlew` braucht das Ausführungsrecht in Git (`git update-index --chmod=+x gradlew`, ist gesetzt).
+- Push auf `main` baut (ca. 4 Minuten ohne Emulator); neue `versionName` + CHANGELOG-Abschnitt ergibt ein Release.
+- Fehler: `gh run view <id> --log-failed`; Lint-Bericht als Artefakt `lint-bericht-<version>`, Testbericht `testbericht-<version>` bei Fehlern.
+- Windows: Mehrzeiliges mit Umlauten per Write-Werkzeug; Git-Autor im Repository gesetzt (wie Moltobene).

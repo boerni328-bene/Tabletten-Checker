@@ -1,5 +1,7 @@
 package com.tablettenchecker.app.ui
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,22 +13,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Surface
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -41,42 +47,65 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tablettenchecker.app.R
 import com.tablettenchecker.app.data.Medication
+import com.tablettenchecker.app.data.Shopping
 import com.tablettenchecker.app.data.StockCalculator
 import com.tablettenchecker.app.data.StockCalculator.Level
+import java.time.LocalDate
+
+private typealias Row2 = Pair<Medication, StockCalculator.Status>
+
+/** Abschnitt der kompakten Ansicht; [title] null = ohne Überschrift. */
+private class Group(@StringRes val title: Int?, val rows: List<Row2>)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OverviewScreen(
     medications: List<Medication>,
     nowMillis: Long,
+    plan: StockCalculator.Plan,
+    showNoon: Boolean,
     compact: Boolean,
+    filter: DoseFilter,
     onToggleCompact: () -> Unit,
+    onFilter: (DoseFilter) -> Unit,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
     onAddPack: (String) -> Unit,
+    onShopping: () -> Unit,
+    onSettings: () -> Unit,
 ) {
-    // Dringendes zuerst: Was am frühesten aufgebraucht ist, steht oben.
-    val rows = remember(medications, nowMillis) {
-        medications
-            .map { it to StockCalculator.status(it, nowMillis) }
-            .sortedWith(compareBy({ it.second.daysLeft ?: Int.MAX_VALUE }, { it.first.name.lowercase() }))
+    val noonVisible = showNoon || medications.any { it.noon > 0.0 }
+    val activeFilter = if (filter == DoseFilter.NOON && !noonVisible) DoseFilter.ALL else filter
+    val all = remember(medications, nowMillis, plan) {
+        medications.map { it to StockCalculator.status(it, nowMillis, plan = plan) }
     }
+    val today = localDate(nowMillis)
+    val trip = remember(all, today, plan) { Shopping.nextTrip(all, today, plan.leadDays) }
+    val shown = all.filter { activeFilter.includes(it.first) }
     var packFor by remember { mutableStateOf<Medication?>(null) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    // Die Schaltfläche nennt die Ansicht, zu der sie wechselt.
-                    TextButton(onClick = onToggleCompact) {
-                        Text(stringResource(if (compact) R.string.view_cards else R.string.view_compact))
-                    }
-                },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.app_name)) },
+                    actions = {
+                        IconButton(onClick = onShopping) {
+                            Icon(Icons.Filled.ShoppingCart, contentDescription = stringResource(R.string.shopping_title))
+                        }
+                        IconButton(onClick = onSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
+                        }
+                    },
+                )
+                if (medications.isNotEmpty()) {
+                    FilterRow(activeFilter, noonVisible, compact, onFilter, onToggleCompact)
+                }
+            }
         },
         floatingActionButton = {
             if (compact) {
@@ -93,7 +122,7 @@ fun OverviewScreen(
             }
         },
     ) { padding ->
-        if (rows.isEmpty()) {
+        if (medications.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
                 contentAlignment = Alignment.Center,
@@ -104,35 +133,41 @@ fun OverviewScreen(
                     textAlign = TextAlign.Center,
                 )
             }
-        } else if (compact) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 8.dp,
-                    end = 8.dp,
-                    top = padding.calculateTopPadding(),
-                    bottom = padding.calculateBottomPadding() + 80.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                item(key = "kopfzeile") { CompactHeader() }
-                items(rows, key = { it.first.id }) { (medication, status) ->
-                    CompactRow(medication = medication, status = status, onClick = { onEdit(medication.id) })
-                }
+            return@Scaffold
+        }
+        val side = if (compact) 8.dp else 16.dp
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = side,
+                end = side,
+                top = padding.calculateTopPadding() + 4.dp,
+                // Platz für die Schaltfläche „Tablette hinzufügen“.
+                bottom = padding.calculateBottomPadding() + if (compact) 80.dp else 96.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 12.dp),
+        ) {
+            if (trip != null) {
+                item(key = "einkauf") { TripBanner(trip, today, onShopping) }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = padding.calculateTopPadding() + 8.dp,
-                    // Platz für die Schaltfläche „Tablette hinzufügen“.
-                    bottom = padding.calculateBottomPadding() + 96.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(rows, key = { it.first.id }) { (medication, status) ->
+            if (shown.isEmpty()) {
+                item(key = "leer") {
+                    Text(stringResource(R.string.empty_filter), modifier = Modifier.padding(16.dp))
+                }
+            } else if (compact) {
+                item(key = "kopfzeile") { CompactHeader() }
+                compactGroups(shown, activeFilter).forEach { group ->
+                    group.title?.let { title -> item(key = "gruppe-$title") { GroupTitle(title) } }
+                    items(group.rows, key = { it.first.id }) { (medication, status) ->
+                        CompactRow(medication, status, activeFilter, today) { onEdit(medication.id) }
+                    }
+                }
+            } else {
+                // Karten: Dringendes zuerst, was am frühesten aufgebraucht ist, steht oben.
+                val sorted = shown.sortedWith(
+                    compareBy({ it.second.daysLeft ?: Int.MAX_VALUE }, { it.first.name.lowercase() })
+                )
+                items(sorted, key = { it.first.id }) { (medication, status) ->
                     MedicationCard(
                         medication = medication,
                         status = status,
@@ -164,6 +199,99 @@ fun OverviewScreen(
     }
 }
 
+/** Alle: Abschnitte Morgens, Mittags, Abends (jede Tablette in ihrem ersten); sonst eine Liste. Je nach Name. */
+private fun compactGroups(rows: List<Row2>, filter: DoseFilter): List<Group> {
+    val byName = rows.sortedBy { it.first.name.lowercase() }
+    if (filter != DoseFilter.ALL) return listOf(Group(null, byName))
+    val titles = listOf(R.string.filter_morning, R.string.filter_noon, R.string.filter_evening, R.string.group_none)
+    return byName
+        .groupBy { (med, _) ->
+            when {
+                med.morning > 0.0 -> 0
+                med.noon > 0.0 -> 1
+                med.evening > 0.0 -> 2
+                else -> 3
+            }
+        }
+        .toSortedMap()
+        .map { (slot, list) -> Group(titles[slot], list) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterRow(
+    active: DoseFilter,
+    noonVisible: Boolean,
+    compact: Boolean,
+    onFilter: (DoseFilter) -> Unit,
+    onToggleCompact: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            DoseFilter.entries.filter { it != DoseFilter.NOON || noonVisible }.forEach { option ->
+                FilterChip(
+                    selected = option == active,
+                    onClick = { onFilter(option) },
+                    label = { Text(stringResource(option.label)) },
+                )
+            }
+        }
+        // Die Schaltfläche nennt die Ansicht, zu der sie wechselt.
+        TextButton(onClick = onToggleCompact) {
+            Text(stringResource(if (compact) R.string.view_cards else R.string.view_compact))
+        }
+    }
+}
+
+/** Hinweis oben: nächster Einkauf und was dabei gleich mitkommt. */
+@Composable
+private fun TripBanner(trip: Shopping.Trip, today: LocalDate, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.ShoppingCart, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = if (trip.date.isAfter(today)) {
+                        stringResource(R.string.trip_by, formatDate(trip.date))
+                    } else {
+                        stringResource(R.string.trip_now)
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = trip.medications.joinToString(", ") { it.name },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupTitle(@StringRes title: Int) {
+    Text(
+        text = stringResource(title),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 10.dp, top = 10.dp, bottom = 2.dp),
+    )
+}
+
 @Composable
 private fun MedicationCard(
     medication: Medication,
@@ -192,14 +320,7 @@ private fun MedicationCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = stringResource(
-                    R.string.dose_line,
-                    formatAmount(medication.morning),
-                    formatAmount(medication.evening),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            DoseChips(medication, DoseFilter.ALL, modifier = Modifier.padding(top = 4.dp))
             Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(R.string.stock_line, formatAmount(status.current)),
@@ -239,42 +360,34 @@ private fun CompactHeader() {
     val style = MaterialTheme.typography.labelMedium
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(stringResource(R.string.col_name), style = style, color = color, modifier = Modifier.weight(1f))
-        Text(
-            stringResource(R.string.col_stock),
-            style = style,
-            color = color,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.width(STOCK_WIDTH),
-        )
-        Text(
-            stringResource(R.string.col_days),
-            style = style,
-            color = color,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.width(DAYS_WIDTH),
-        )
-        Text(
-            stringResource(R.string.col_reorder),
-            style = style,
-            color = color,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.width(REORDER_WIDTH),
-        )
+        listOf(
+            R.string.col_stock to STOCK_WIDTH,
+            R.string.col_days to DAYS_WIDTH,
+            R.string.col_reorder to REORDER_WIDTH,
+        ).forEach { (text, width) ->
+            Text(
+                stringResource(text),
+                style = style,
+                color = color,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.width(width),
+            )
+        }
     }
 }
 
-/** Eine Tablette als Zeile: Name, Bestand, Tage Reichweite, Nachkauf-Datum. */
+/** Eine Tablette als Zeile: Name und Stärke, Einnahme-Marken, Bestand, Tage Reichweite, Nachkauf-Datum. */
 @Composable
 private fun CompactRow(
     medication: Medication,
     status: StockCalculator.Status,
+    filter: DoseFilter,
+    today: LocalDate,
     onClick: () -> Unit,
 ) {
     val urgent = status.level == Level.EMPTY || status.level == Level.REORDER
@@ -288,15 +401,10 @@ private fun CompactRow(
         Level.REORDER -> MaterialTheme.colorScheme.onTertiaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val doses = stringResource(
-        R.string.dose_short,
-        formatAmount(medication.morning),
-        formatAmount(medication.evening),
-    )
     val reorderBy = status.reorderBy
     val reorder = when {
         urgent -> stringResource(R.string.reorder_now_short)
-        reorderBy != null -> formatDateShort(reorderBy)
+        reorderBy != null -> formatDateShort(reorderBy, today)
         else -> "–"
     }
     Surface(
@@ -307,23 +415,29 @@ private fun CompactRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = medication.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = if (medication.note.isBlank()) doses else "$doses · ${medication.note}",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = medication.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (medication.note.isNotBlank()) {
+                        Text(
+                            text = "  " + medication.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                DoseChips(medication, filter, modifier = Modifier.padding(top = 2.dp))
             }
             Text(
                 text = formatAmount(status.current),
@@ -333,10 +447,7 @@ private fun CompactRow(
                 modifier = Modifier.width(STOCK_WIDTH),
             )
             Text(
-                text = when {
-                    status.level == Level.EMPTY -> "0"
-                    else -> status.daysLeft?.toString() ?: "–"
-                },
+                text = if (status.level == Level.EMPTY) "0" else status.daysLeft?.toString() ?: "–",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.End,
                 maxLines = 1,

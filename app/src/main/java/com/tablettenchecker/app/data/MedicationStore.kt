@@ -3,27 +3,22 @@ package com.tablettenchecker.app.data
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/** Speichert die Tablettenliste als kleine Datei im privaten Ordner der App. */
+/** Speichert Tabletten und Einstellungen als kleine Datei im privaten Ordner der App. */
 class MedicationStore(private val file: File) {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
-
-    fun load(): List<Medication> {
-        if (!file.exists()) return emptyList()
+    fun load(): MedicationFile {
+        if (!file.exists()) return MedicationFile()
         return try {
-            json.decodeFromString(MedicationFile.serializer(), file.readText()).medications
+            decode(file.readText())
         } catch (e: Exception) {
             // Unlesbare Datei aufheben statt überschreiben, damit nichts verloren geht.
             file.copyTo(File(file.parentFile, file.name + ".defekt"), overwrite = true)
-            emptyList()
+            MedicationFile()
         }
     }
 
-    fun save(medications: List<Medication>) {
-        val text = json.encodeToString(MedicationFile.serializer(), MedicationFile(medications = medications))
+    fun save(data: MedicationFile) {
+        val text = encode(data)
         // Erst daneben schreiben, dann austauschen: Die alte Datei bleibt ganz, falls das Schreiben abbricht.
         val temp = File(file.parentFile, file.name + ".neu")
         temp.writeText(text)
@@ -31,5 +26,16 @@ class MedicationStore(private val file: File) {
             file.writeText(text)
             temp.delete()
         }
+    }
+
+    companion object {
+        private val json = Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+
+        fun encode(data: MedicationFile): String = json.encodeToString(MedicationFile.serializer(), data)
+
+        fun decode(text: String): MedicationFile = json.decodeFromString(MedicationFile.serializer(), text)
     }
 }

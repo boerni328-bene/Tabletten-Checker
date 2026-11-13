@@ -3,6 +3,18 @@
 Alle wichtigen Änderungen an der App werden hier festgehalten.
 Die neueste Version steht oben. Versionsschema: Major.Minor.Patch.
 
+## [0.3.0] – 2026-11-13 (versionCode 3)
+
+### Neu
+- **Auswahl nach Tageszeit:** Oben „Alle“, „Morgens“, „Abends“ (und „Mittags“, wenn eingeschaltet). „Morgens“ zeigt nur die Tabletten für morgens mit ihrer Menge – praktisch beim Richten der Tabletten. Die Auswahl bleibt gemerkt.
+- **Kompakte Ansicht nach Tageszeit geordnet:** Bei „Alle“ in den Abschnitten Morgens, Mittags, Abends, darin nach Namen.
+- **Einnahmemengen farbig:** „morgens 1“ (blau), „mittags 1“ (grün), „abends 1“ (violett) als Marken, klar getrennt vom Bestand.
+- **Einkaufsliste** (Einkaufswagen oben): wie viele Packungen von welcher Tablette für einen Vorrat von 90 Tagen nötig sind, zum Abhaken, Teilen (z. B. an die Apotheke) und „Als gekauft eintragen“, das den Bestand erhöht.
+- **Gemeinsamer Einkauf:** Oben in der Übersicht steht „Nächster Einkauf bis …“ mit allen Tabletten, die bis 14 Tage danach ebenfalls fällig werden – ein Weg statt mehrerer.
+- **Einstellungen** (Zahnrad oben): Uhrzeiten morgens, mittags und abends, Mittags als dritte Einnahmezeit, Vorlauf für den Nachkauf, Vorrat nach dem Einkauf.
+- **Sichern und wiederherstellen** in den Einstellungen: Tabletten und Einstellungen als Datei, z. B. für ein neues Handy.
+- **Weitere Angaben je Tablette** (beim Bearbeiten aufklappen): Einnahme nur alle paar Tage und ein eigener Vorlauf, z. B. für ein Rezept, das länger dauert.
+
 ## [0.2.0] – 2026-11-13 (versionCode 2)
 
 ### Neu

@@ -64,6 +64,20 @@ private val DarkColors = darkColorScheme(
     outlineVariant = Color(0xFF3F4948),
 )
 
+/** Farben (Hintergrund, Schrift) der Einnahme-Marken: morgens Himmelblau, mittags Grün, abends Violett. */
+@Composable
+fun doseColors(slot: DoseFilter): Pair<Color, Color> {
+    val dark = isSystemInDarkTheme()
+    return when (slot) {
+        DoseFilter.NOON ->
+            if (dark) Color(0xFF2E4B25) to Color(0xFFD3F2CB) else Color(0xFFD8F3D0) to Color(0xFF0F3A0A)
+        DoseFilter.EVENING ->
+            if (dark) Color(0xFF3D3570) to Color(0xFFE3DEFF) else Color(0xFFE5DEFF) to Color(0xFF22155E)
+        else ->
+            if (dark) Color(0xFF1E4A63) to Color(0xFFCDEBFF) else Color(0xFFD3EEFF) to Color(0xFF003549)
+    }
+}
+
 @Composable
 fun TablettenTheme(content: @Composable () -> Unit) {
     MaterialTheme(

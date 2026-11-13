@@ -14,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.tablettenchecker.app.R
 import com.tablettenchecker.app.data.Medication
 import com.tablettenchecker.app.data.MedicationInput
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
@@ -49,6 +52,8 @@ import kotlin.math.roundToInt
 fun EditScreen(
     medication: Medication?,
     currentStock: Double,
+    showNoon: Boolean,
+    defaultLead: Int,
     onSave: (MedicationInput) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
@@ -56,18 +61,37 @@ fun EditScreen(
     var name by rememberSaveable { mutableStateOf(medication?.name ?: "") }
     var note by rememberSaveable { mutableStateOf(medication?.note ?: "") }
     var morning by rememberSaveable { mutableStateOf(medication?.let { formatAmount(it.morning) } ?: "") }
+    var noon by rememberSaveable { mutableStateOf(medication?.let { formatAmount(it.noon) } ?: "") }
     var evening by rememberSaveable { mutableStateOf(medication?.let { formatAmount(it.evening) } ?: "") }
     var stock by rememberSaveable { mutableStateOf(medication?.let { formatAmount(currentStock) } ?: "") }
     var packSize by rememberSaveable {
         mutableStateOf(medication?.takeIf { it.packSize > 0 }?.packSize?.toString() ?: "")
     }
+    var everyDays by rememberSaveable { mutableStateOf((medication?.everyDays ?: 1).toString()) }
+    var nextDose by rememberSaveable {
+        mutableStateOf(
+            medication?.takeIf { it.everyDays > 1 }
+                ?.let { Math.floorMod(it.anchorDay - LocalDate.now().toEpochDay(), it.everyDays.toLong()).toString() }
+                ?: "0"
+        )
+    }
+    var lead by rememberSaveable { mutableStateOf(medication?.leadDays?.toString() ?: "") }
+    var more by rememberSaveable {
+        mutableStateOf(medication != null && (medication.everyDays > 1 || medication.leadDays != null))
+    }
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
+    val noonVisible = showNoon || (medication?.noon ?: 0.0) > 0.0
     val morningValue = parseAmount(morning)
+    val noonValue = if (noonVisible) parseAmount(noon) else 0.0
     val eveningValue = parseAmount(evening)
     val stockValue = parseAmount(stock)
     val packValue = parseAmount(packSize)
+    val everyValue = parseWhole(everyDays, 1, 365)
+    val nextValue = if ((everyValue ?: 1) > 1) parseWhole(nextDose, 0, (everyValue ?: 1) - 1) else 0
+    val leadValue = parseWhole(lead, 0, 365)
+    val leadOk = lead.isBlank() || leadValue != null
     val nameOk = name.isNotBlank()
 
     Scaffold(
@@ -125,7 +149,8 @@ fun EditScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.label_per_dose), style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumberField(
                     value = morning,
                     onValueChange = { morning = it },
@@ -133,6 +158,15 @@ fun EditScreen(
                     isError = showErrors && morningValue == null,
                     modifier = Modifier.weight(1f),
                 )
+                if (noonVisible) {
+                    NumberField(
+                        value = noon,
+                        onValueChange = { noon = it },
+                        label = stringResource(R.string.field_noon),
+                        isError = showErrors && noonValue == null,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 NumberField(
                     value = evening,
                     onValueChange = { evening = it },
@@ -160,21 +194,67 @@ fun EditScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            TextButton(onClick = { more = !more }) {
+                Text(stringResource(R.string.more_options))
+                Icon(
+                    if (more) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                )
+            }
+            if (more) {
+                NumberField(
+                    value = everyDays,
+                    onValueChange = { everyDays = it },
+                    label = stringResource(R.string.field_every_days),
+                    isError = showErrors && everyValue == null,
+                    whole = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if ((everyValue ?: 1) > 1) {
+                    NumberField(
+                        value = nextDose,
+                        onValueChange = { nextDose = it },
+                        label = stringResource(R.string.field_next_dose),
+                        isError = showErrors && nextValue == null,
+                        whole = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                NumberField(
+                    value = lead,
+                    onValueChange = { lead = it },
+                    label = stringResource(R.string.field_lead),
+                    isError = showErrors && !leadOk,
+                    whole = true,
+                    placeholder = stringResource(R.string.lead_default, defaultLead),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             Button(
                 onClick = {
-                    if (nameOk && morningValue != null && eveningValue != null && stockValue != null && packValue != null) {
+                    if (nameOk && morningValue != null && noonValue != null && eveningValue != null &&
+                        stockValue != null && packValue != null && everyValue != null && nextValue != null && leadOk
+                    ) {
                         onSave(
                             MedicationInput(
                                 name = name,
                                 note = note,
                                 morning = morningValue,
+                                noon = noonValue,
                                 evening = eveningValue,
+                                everyDays = everyValue,
+                                nextDoseInDays = nextValue,
                                 stock = stockValue,
                                 packSize = packValue.roundToInt(),
+                                leadDays = if (lead.isBlank()) null else leadValue,
                             )
                         )
                     } else {
                         showErrors = true
+                        // Fehler in den weiteren Angaben sichtbar machen.
+                        if (everyValue == null || nextValue == null || !leadOk) more = true
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -203,25 +283,29 @@ fun EditScreen(
 }
 
 @Composable
-private fun NumberField(
+fun NumberField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
     isError: Boolean,
     modifier: Modifier = Modifier,
+    whole: Boolean = false,
+    placeholder: String? = null,
+    errorText: String = stringResource(R.string.error_number),
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        placeholder = placeholder?.let { { Text(it) } },
         singleLine = true,
         isError = isError,
         supportingText = if (isError) {
-            { Text(stringResource(R.string.error_number)) }
+            { Text(errorText) }
         } else {
             null
         },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        keyboardOptions = KeyboardOptions(keyboardType = if (whole) KeyboardType.Number else KeyboardType.Decimal),
         modifier = modifier,
     )
 }

@@ -29,6 +29,6 @@ Zuerst `docs/uebergabe/uebergabe.md` lesen (einzige Übergabedatei, wird übersc
 
 ## Aufbau des Codes
 
-- `data/Medication.kt` – Tablette und Dateiformat; `data/MedicationStore.kt` – speichert `tabletten.json` im App-Ordner.
-- `data/StockCalculator.kt` – Rechnung für Bestand, Reichweite, Nachkauf (ohne Android, Tests in `app/src/test`).
-- `ui/OverviewScreen.kt`, `ui/EditScreen.kt`, `ui/MainViewModel.kt`, `MainActivity.kt`.
+- `data/Medication.kt` – Tablette, Einstellungen und Dateiformat; `data/MedicationStore.kt` – speichert `tabletten.json` im App-Ordner.
+- `data/StockCalculator.kt` – Rechnung für Bestand, Reichweite, Nachkauf; `data/Shopping.kt` – Einkaufsliste und gemeinsamer Einkauf (beide ohne Android, Tests in `app/src/test`).
+- `ui/OverviewScreen.kt`, `ui/EditScreen.kt`, `ui/SettingsScreen.kt`, `ui/ShoppingScreen.kt`, `ui/DoseFilter.kt` (Tageszeit-Auswahl, farbige Einnahme-Marken), `ui/MainViewModel.kt`, `MainActivity.kt` (einfache Seitenwahl ohne Navigationsbibliothek).
