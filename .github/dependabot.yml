@@ -1,0 +1,19 @@
+# Dependabot schlägt einmal im Monat neue Versionen der Bausteine vor (#9).
+# Es entstehen nur Vorschläge (Pull-Requests); übernommen wird nichts automatisch.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      bausteine:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]

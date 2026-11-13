@@ -1,0 +1,256 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Standard: nur lesen. Schreibrechte bekommt ausschließlich der Release-Job.
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Fingerabdruck des Signaturzertifikats. Ändert er sich, wurde der Schlüssel ersetzt –
+  # dann ließen sich Updates nicht mehr installieren, deshalb bricht der Build ab.
+  SIGNATUR_FINGERABDRUCK: "0A:B2:69:3A:87:FF:8B:5D:A9:86:F5:12:FB:9A:D6:17:F2:A0:91:12:46:04:E1:67:32:2F:60:63:7D:0C:2C:E1"
+
+# Alle Actions sind auf feste Commit-Kennungen angepinnt (Schutz vor veränderten Versionen).
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.name }}
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Java 17 einrichten
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Version auslesen
+        id: version
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts)
+          if [ -z "$VERSION" ] || [ -z "$CODE" ]; then echo "::error::versionName oder versionCode nicht gefunden."; exit 1; fi
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION (versionCode $CODE)"
+
+      # Fehler hier fallen sonst erst beim Installieren auf.
+      - name: Versionsnummer und Änderungsprotokoll prüfen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.name }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          ZEILE=$(grep -m1 -F "## [$VERSION]" CHANGELOG.md || true)
+          if [ -z "$ZEILE" ]; then
+            echo "::error::In CHANGELOG.md fehlt der Abschnitt „## [$VERSION]“."
+            exit 1
+          fi
+          if ! echo "$ZEILE" | grep -qF "(versionCode $CODE)"; then
+            echo "::error::Der Abschnitt „## [$VERSION]“ in CHANGELOG.md nennt nicht versionCode $CODE."
+            exit 1
+          fi
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION gibt es schon – keine neue Version, nur bauen."
+            exit 0
+          fi
+          LETZTES=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2> /dev/null || true)
+          if [ -z "$LETZTES" ] || [ "$LETZTES" = "null" ]; then
+            echo "Noch kein Release vorhanden."
+            exit 0
+          fi
+          ALT=$(gh api "repos/$GITHUB_REPOSITORY/contents/app/build.gradle.kts?ref=$LETZTES" --jq .content \
+            | base64 --decode | grep -oP 'versionCode\s*=\s*\K\d+' || true)
+          if [ -z "$ALT" ]; then
+            echo "::error::versionCode des letzten Release $LETZTES nicht lesbar."
+            exit 1
+          fi
+          if [ "$CODE" -le "$ALT" ]; then
+            echo "::error::versionCode $CODE ist nicht größer als beim letzten Release $LETZTES ($ALT). Android würde das Update ablehnen."
+            exit 1
+          fi
+          echo "Neue Version $VERSION: versionCode $ALT → $CODE"
+
+      - name: Signatur-Secrets prüfen und Schlüssel bereitstellen
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          FEHLT=0
+          for NAME in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!NAME}" ]; then echo "::error::Secret $NAME fehlt oder ist leer."; FEHLT=1; fi
+          done
+          if [ "$FEHLT" -ne 0 ]; then echo "Ohne alle vier Signatur-Secrets wird nicht gebaut."; exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.p12"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+
+      - name: Code prüfen, testen und signierte Release-APK bauen
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        # Unit-Tests gibt es seit AGP 9 nur noch für die Debug-Variante (gleicher Code, ohne Verkleinerung).
+        run: ./gradlew lintRelease testDebugUnitTest assembleRelease --no-daemon
+
+      - name: Prüfbericht (Lint) speichern
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lint-bericht-${{ steps.version.outputs.name }}
+          retention-days: 7
+          path: app/build/reports/lint-results-release.html
+          if-no-files-found: ignore
+
+      - name: Testbericht speichern
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: testbericht-${{ steps.version.outputs.name }}
+          retention-days: 7
+          path: app/build/reports/tests
+          if-no-files-found: ignore
+
+      - name: APK umbenennen
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/tabletten-checker-${{ steps.version.outputs.name }}.apk"
+
+      # Nur eine APK mit gültiger Signatur und dem bekannten Schlüssel wird weitergegeben.
+      - name: Signatur prüfen
+        env:
+          APK: dist/tabletten-checker-${{ steps.version.outputs.name }}.apk
+        run: |
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner"
+          echo "Prüfwerkzeug: $APKSIGNER"
+          ZERTIFIKATE=$("$APKSIGNER" verify --print-certs "$APK" 2>&1)
+          echo "$ZERTIFIKATE"
+          DIGESTS=$(echo "$ZERTIFIKATE" | grep -oiE 'certificate SHA-256 digest: *[0-9a-f]{64}' | grep -oiE '[0-9a-f]{64}' | sort -u || true)
+          ANZAHL=$(echo "$DIGESTS" | grep -c . || true)
+          FINGERABDRUCK=$(echo "$DIGESTS" | head -n 1 | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
+          if [ "$ANZAHL" -ne 1 ] || [ "$FINGERABDRUCK" != "$SIGNATUR_FINGERABDRUCK" ]; then
+            echo "::error::Die APK ist nicht mit dem bekannten Schlüssel signiert (gefunden: $FINGERABDRUCK)."
+            exit 1
+          fi
+          echo "Signatur in Ordnung: $FINGERABDRUCK"
+
+      # Die App braucht keine Berechtigung. Was ein Baustein unbemerkt mitbringt, bricht hier den Build ab –
+      # auch nach Updates durch Dependabot. Neue Einträge in ERLAUBT nur nach Freigabe durch den Projektinhaber.
+      - name: Berechtigungen prüfen
+        env:
+          APK: dist/tabletten-checker-${{ steps.version.outputs.name }}.apk
+          # Nur innerhalb der App: AndroidX schützt damit eigene Empfänger (für Nutzer unsichtbar).
+          ERLAUBT: com.tablettenchecker.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+        run: |
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)aapt2"
+          LISTE=$("$AAPT2" dump permissions "$APK")
+          MANIFEST=$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")
+          # Gegenprobe: Ohne die eigene Startseite wurde das Manifest nicht richtig gelesen.
+          if ! echo "$MANIFEST" | grep -qF "com.tablettenchecker.app.MainActivity"; then
+            echo "::error::Das Manifest der APK konnte nicht gelesen werden."
+            exit 1
+          fi
+          GEFUNDEN=$(echo "$LISTE" | grep -E '^uses-permission' | sed -E "s/^uses-permission(-sdk-23)?: (name=')?([^' ]+).*/\3/" | sort -u || true)
+          echo "Berechtigungen der APK:"
+          echo "${GEFUNDEN:-(keine)}"
+          FEHLER=0
+          for P in $GEFUNDEN; do
+            case " $ERLAUBT " in
+              *" $P "*) ;;
+              *) echo "::error::Nicht erlaubte Berechtigung in der APK: $P"; FEHLER=1 ;;
+            esac
+          done
+          [ "$FEHLER" -eq 0 ] || exit 1
+          echo "Berechtigungen in Ordnung."
+
+      - name: APK als Build-Ergebnis speichern
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tabletten-checker-${{ steps.version.outputs.name }}
+          retention-days: 7
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Zuordnungsdatei für Fehlermeldungen speichern
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mapping-${{ steps.version.outputs.name }}
+          retention-days: 7
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+
+  release:
+    # Nur für den Hauptzweig; dieser Job hat als einziger Schreibrechte und sieht keine Signatur-Secrets.
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Für den Herkunftsnachweis
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Code auschecken (für CHANGELOG.md)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prüfen, ob die Version neu ist
+        id: neu
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION existiert bereits - kein neues Release."
+            echo "neu=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "neu=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: APK aus dem Build holen
+        if: steps.neu.outputs.neu == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tabletten-checker-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Prüfsumme und Release-Text erzeugen
+        if: steps.neu.outputs.neu == 'true'
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          (cd dist && sha256sum "tabletten-checker-$VERSION.apk" > "tabletten-checker-$VERSION.apk.sha256")
+          bash .github/scripts/release-text.sh "$VERSION" "dist/tabletten-checker-$VERSION.apk" > release-notes.md
+          cat release-notes.md
+
+      - name: Herkunftsnachweis anlegen
+        if: steps.neu.outputs.neu == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/tabletten-checker-${{ needs.build.outputs.version }}.apk
+
+      - name: Release anlegen
+        if: steps.neu.outputs.neu == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "v$VERSION" "dist/tabletten-checker-$VERSION.apk" "dist/tabletten-checker-$VERSION.apk.sha256" \
+            --title "Tabletten-Checker $VERSION" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA"

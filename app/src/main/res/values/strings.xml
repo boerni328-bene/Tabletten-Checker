@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tabletten-Checker</string>
+
+    <!-- Übersicht -->
+    <string name="add_medication">Tablette hinzufügen</string>
+    <string name="empty_list">Noch keine Tabletten vorhanden.\n\nMit „Tablette hinzufügen“ die erste Tablette eintragen.</string>
+    <string name="dose_line">Morgens %1$s · Abends %2$s</string>
+    <string name="stock_line">Bestand: %1$s Stück</string>
+    <plurals name="days_left">
+        <item quantity="one">Reicht noch %1$d Tag</item>
+        <item quantity="other">Reicht noch %1$d Tage</item>
+    </plurals>
+    <string name="empty_on">Aufgebraucht am %1$s</string>
+    <string name="not_enough_for_a_day">Reicht nicht mehr für einen ganzen Tag</string>
+    <string name="no_plan">Keine tägliche Einnahme eingetragen</string>
+    <string name="lasts_very_long">Reicht länger als zehn Jahre</string>
+    <string name="reorder_by">Nachkaufen bis %1$s</string>
+    <string name="reorder_now">Jetzt nachkaufen</string>
+    <plurals name="pack_line">
+        <item quantity="one">Eine Packung (%1$s Stück) reicht %2$d Tag</item>
+        <item quantity="other">Eine Packung (%1$s Stück) reicht %2$d Tage</item>
+    </plurals>
+    <string name="add_pack">Packung hinzufügen</string>
+    <string name="add_pack_title">Packung hinzufügen?</string>
+    <string name="add_pack_text">Der Bestand von „%1$s“ steigt um %2$s Stück.</string>
+
+    <!-- Bearbeiten -->
+    <string name="title_new">Tablette hinzufügen</string>
+    <string name="title_edit">Tablette bearbeiten</string>
+    <string name="field_name">Name</string>
+    <string name="field_note">Stärke oder Hinweis (z. B. 5 mg)</string>
+    <string name="field_morning">Morgens (Stück)</string>
+    <string name="field_evening">Abends (Stück)</string>
+    <string name="field_stock">Bestand heute (Stück)</string>
+    <string name="field_pack_size">Stück pro Packung</string>
+    <string name="hint_doses">Halbe Tabletten als 0,5 eintragen. Die App zieht die Einnahme morgens um 8 Uhr und abends um 20 Uhr selbst vom Bestand ab.</string>
+    <string name="error_name">Bitte einen Namen eintragen</string>
+    <string name="error_number">Bitte eine Zahl eintragen</string>
+    <string name="save">Speichern</string>
+    <string name="back">Zurück</string>
+    <string name="delete">Löschen</string>
+    <string name="delete_title">Tablette wirklich löschen?</string>
+    <string name="delete_text">„%1$s“ wird aus der Übersicht entfernt.</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="add">Hinzufügen</string>
+</resources>

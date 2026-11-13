@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nur der Rahmen beim Start; Farben und Schriften kommen aus Compose (ui/Theme.kt). -->
+    <style name="Theme.TablettenChecker" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <color name="ic_launcher_background">#00696B</color>
+</resources>
