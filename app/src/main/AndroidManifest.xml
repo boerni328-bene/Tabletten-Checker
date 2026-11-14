@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Die App braucht keine Berechtigung (kein Internet). Der Build prüft die fertige APK gegen eine
-  Erlaubt-Liste (build.yml, „Berechtigungen prüfen“).
+  Kein Internet. Zwei Berechtigungen, beide nur für den Nachkauf-Hinweis (freigegeben vom Projektinhaber
+  am 14.11.2026). Der Build prüft die fertige APK gegen eine Erlaubt-Liste (build.yml, „Berechtigungen prüfen“).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Benachrichtigung „Tabletten nachkaufen“; ab Android 13 fragt die App einmal danach. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Nach einem Neustart des Handys den täglichen Wecker für den Hinweis neu stellen (ohne Abfrage). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!--
       Datensicherung: Die Tablettenliste wird nicht in die Android-Cloud-Sicherung (Google-Konto) aufgenommen.
-      Alles bleibt auf dem Gerät.
+      Alles bleibt auf dem Gerät; gesichert wird über die eigene Sicherungsdatei in den Einstellungen.
     -->
     <application
         android:allowBackup="false"
@@ -25,6 +31,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Täglicher Wecker: Nachkauf prüfen. Nur für die App selbst. -->
+        <receiver
+            android:name=".notify.ReorderAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Neustart des Handys und Update der App: Wecker neu stellen. Tut sonst nichts. -->
+        <receiver
+            android:name=".notify.StartReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

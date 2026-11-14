@@ -150,13 +150,14 @@ jobs:
           fi
           echo "Signatur in Ordnung: $FINGERABDRUCK"
 
-      # Die App braucht keine Berechtigung. Was ein Baustein unbemerkt mitbringt, bricht hier den Build ab –
+      # Nur freigegebene Berechtigungen. Was ein Baustein unbemerkt mitbringt, bricht hier den Build ab –
       # auch nach Updates durch Dependabot. Neue Einträge in ERLAUBT nur nach Freigabe durch den Projektinhaber.
       - name: Berechtigungen prüfen
         env:
           APK: dist/tabletten-checker-${{ steps.version.outputs.name }}.apk
           # Nur innerhalb der App: AndroidX schützt damit eigene Empfänger (für Nutzer unsichtbar).
-          ERLAUBT: com.tablettenchecker.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+          # Nachkauf-Hinweis: Benachrichtigung und Wecker nach Neustart, vom Projektinhaber am 14.11.2026 freigegeben.
+          ERLAUBT: com.tablettenchecker.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION android.permission.POST_NOTIFICATIONS android.permission.RECEIVE_BOOT_COMPLETED
         run: |
           AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)aapt2"
           LISTE=$("$AAPT2" dump permissions "$APK")

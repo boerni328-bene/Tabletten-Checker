@@ -62,6 +62,10 @@ data class AppSettings(
     val leadDays: Int = 14,
     /** Einkaufsliste: Vorrat nach dem Einkauf in Tagen. */
     val supplyDays: Int = 90,
+    /** Nachkauf-Hinweis als Benachrichtigung. */
+    val notify: Boolean = true,
+    /** Uhrzeit des täglichen Hinweises in Minuten nach Mitternacht. */
+    val notifyMinutes: Int = 9 * 60,
 )
 
 /** Aufbau der gespeicherten Datei und der Sicherung; [version] erlaubt spätere Umbauten. */

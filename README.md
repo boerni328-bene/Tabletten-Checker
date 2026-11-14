@@ -7,7 +7,8 @@ Android-App (ab Android 8.0) für alle, die täglich morgens und abends Tablette
 - **Übersicht:** von welcher Tablette noch wie viel da ist und wie lange es reicht.
 - **Nachkauf:** bis wann nachgekauft werden sollte und wie lange eine Packung reicht.
 - **Ohne tägliche Arbeit:** Die App zieht die Einnahme nach dem Plan selbst vom Bestand ab.
-- **Privat:** kein Internet, kein Konto, keine Werbung, keine Berechtigung. Die Tablettenliste bleibt auf dem Gerät.
+- **Nachkauf-Hinweis:** Benachrichtigung, sobald eine Tablette nachzukaufen ist.
+- **Privat:** kein Internet, kein Konto, keine Werbung. Die Tablettenliste bleibt auf dem Gerät; Berechtigungen nur für den Nachkauf-Hinweis.
 
 Die App ist eine Vorratshilfe. Sie ersetzt keinen ärztlichen Rat und keinen Einnahmeplan der Praxis oder Apotheke.
 

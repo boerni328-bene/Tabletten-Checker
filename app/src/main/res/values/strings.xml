@@ -87,6 +87,11 @@
     <string name="settings_reorder">Nachkauf</string>
     <string name="field_default_lead">Nachkaufen (Tage vor dem Aufbrauchen)</string>
     <string name="field_supply_days">Vorrat nach dem Einkauf (Tage)</string>
+    <string name="notify_switch">Hinweis zum Nachkauf</string>
+    <string name="field_notify_time">Uhrzeit des Hinweises</string>
+    <string name="notify_hint">Einmal am Tag um diese Uhrzeit (ungefähr) prüfen. Ein Hinweis kommt, sobald eine Tablette nachzukaufen ist, danach alle 3 Tage, bis sie als gekauft eingetragen ist.</string>
+    <string name="notify_blocked">Benachrichtigungen sind für die App ausgeschaltet.</string>
+    <string name="notify_open_settings">Android-Einstellungen öffnen</string>
     <string name="backup_title">Sichern und wiederherstellen</string>
     <string name="backup_text">Tabletten und Einstellungen als Datei speichern, z. B. vor dem Wechsel auf ein neues Handy. Die Datei bleibt dort, wo sie gespeichert wird.</string>
     <string name="backup_save">Sichern</string>
@@ -118,4 +123,9 @@
     <string name="purchased_text">Der Bestand der abgehakten Tabletten steigt um die angegebene Menge.</string>
     <string name="share">Teilen</string>
     <string name="share_title">Einkaufsliste vom %1$s</string>
+
+    <!-- Benachrichtigung -->
+    <string name="notify_channel">Nachkauf</string>
+    <string name="notify_title">Tabletten nachkaufen</string>
+    <string name="notify_along">Gleich mitnehmen: %1$s</string>
 </resources>

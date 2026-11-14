@@ -14,6 +14,7 @@ import com.tablettenchecker.app.data.MedicationFile
 import com.tablettenchecker.app.data.MedicationInput
 import com.tablettenchecker.app.data.MedicationStore
 import com.tablettenchecker.app.data.StockCalculator
+import com.tablettenchecker.app.notify.ReorderNotifier
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -47,6 +48,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         DoseFilter.entries.firstOrNull { it.name == prefs.getString("auswahl", null) } ?: DoseFilter.ALL
     )
         private set
+
+    init {
+        // Wecker für den Nachkauf-Hinweis bei jedem Start stellen (z. B. falls Android ihn entfernt hat).
+        ReorderNotifier.schedule(application, settings)
+    }
 
     fun toggleCompact() {
         compact = !compact
@@ -123,6 +129,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         medications = rebased
         settings = new
         persist()
+        ReorderNotifier.schedule(getApplication(), new)
     }
 
     /** Tabletten und Einstellungen in die gewählte Datei schreiben. */
@@ -153,6 +160,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         medications = file.medications.distinctBy { it.id }
         settings = file.settings
         persist()
+        ReorderNotifier.schedule(getApplication(), file.settings)
     }
 
     private fun update(list: List<Medication>) {
@@ -162,6 +170,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persist() {
         store.save(MedicationFile(medications = medications, settings = settings))
+        // Überholten Nachkauf-Hinweis entfernen, z. B. nachdem gekauft wurde.
+        ReorderNotifier.check(getApplication(), post = false)
     }
 
     /** Liest höchstens 2 MB; größere Dateien sind keine Sicherung dieser App. */

@@ -32,3 +32,4 @@ Zuerst `docs/uebergabe/uebergabe.md` lesen (einzige Übergabedatei, wird übersc
 - `data/Medication.kt` – Tablette, Einstellungen und Dateiformat; `data/MedicationStore.kt` – speichert `tabletten.json` im App-Ordner.
 - `data/StockCalculator.kt` – Rechnung für Bestand, Reichweite, Nachkauf; `data/Shopping.kt` – Einkaufsliste und gemeinsamer Einkauf (beide ohne Android, Tests in `app/src/test`).
 - `ui/OverviewScreen.kt`, `ui/EditScreen.kt`, `ui/SettingsScreen.kt`, `ui/ShoppingScreen.kt`, `ui/DoseFilter.kt` (Tageszeit-Auswahl, farbige Einnahme-Marken), `ui/MainViewModel.kt`, `MainActivity.kt` (einfache Seitenwahl ohne Navigationsbibliothek).
+- `notify/ReorderNotifier.kt` – täglicher Wecker und Nachkauf-Benachrichtigung; `data/ReorderCheck.kt` – wann ein Hinweis kommt (getestet).

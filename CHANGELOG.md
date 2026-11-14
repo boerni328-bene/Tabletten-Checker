@@ -3,6 +3,15 @@
 Alle wichtigen Änderungen an der App werden hier festgehalten.
 Die neueste Version steht oben. Versionsschema: Major.Minor.Patch.
 
+## [0.4.0] – 2026-11-14 (versionCode 4)
+
+### Neu
+- **Nachkauf-Hinweis:** Einmal am Tag (Standard 9 Uhr, ungefähr) prüft die App den Vorrat. Ist eine Tablette nachzukaufen, kommt die Benachrichtigung „Tabletten nachkaufen“ mit den fälligen Tabletten und dem, was beim selben Einkauf gleich mitkommt. Danach alle 3 Tage eine Erinnerung, bis „Als gekauft eintragen“ oder „Packung hinzufügen“ den Bestand erhöht hat. Antippen öffnet die Einkaufsliste.
+- In den Einstellungen: „Hinweis zum Nachkauf“ an/aus und die Uhrzeit. Ab Android 13 fragt die App einmal, ob Benachrichtigungen erlaubt sind.
+
+### Berechtigungen
+- Benachrichtigungen und „Beim Start ausführen“ (stellt den täglichen Wecker nach einem Neustart des Handys neu). Beide nur für den Nachkauf-Hinweis, freigegeben vom Projektinhaber am 14.11.2026. Weiterhin kein Internet.
+
 ## [0.3.0] – 2026-11-13 (versionCode 3)
 
 ### Neu

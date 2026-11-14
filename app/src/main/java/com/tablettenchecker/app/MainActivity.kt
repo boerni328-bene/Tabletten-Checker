@@ -1,7 +1,13 @@
 package com.tablettenchecker.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.tablettenchecker.app.notify.ReorderNotifier
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,9 +36,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        askForNotifications()
+        // Antippen des Nachkauf-Hinweises öffnet die Einkaufsliste.
+        val startPage =
+            if (intent?.getStringExtra(ReorderNotifier.EXTRA_PAGE) == ReorderNotifier.PAGE_SHOPPING) SHOPPING else OVERVIEW
         setContent {
             TablettenTheme {
-                var screen by rememberSaveable { mutableStateOf(OVERVIEW) }
+                var screen by rememberSaveable { mutableStateOf(startPage) }
                 val back = { screen = OVERVIEW }
                 if (screen != OVERVIEW) BackHandler(onBack = back)
                 val vm = viewModel
@@ -99,6 +109,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Ab Android 13 einmalig fragen, ob Nachkauf-Hinweise erlaubt sind (später in den Einstellungen änderbar). */
+    private fun askForNotifications() {
+        if (Build.VERSION.SDK_INT < 33 || !viewModel.settings.notify) return
+        val prefs = getSharedPreferences("einstellungen", MODE_PRIVATE)
+        if (prefs.getBoolean("hinweis_gefragt", false)) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        prefs.edit().putBoolean("hinweis_gefragt", true).apply()
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     override fun onResume() {

@@ -1,7 +1,12 @@
 package com.tablettenchecker.app.ui
 
+import android.Manifest
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
+import androidx.core.app.NotificationManagerCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +70,9 @@ fun SettingsScreen(
     var showNoon by rememberSaveable { mutableStateOf(settings.showNoon) }
     var lead by rememberSaveable { mutableStateOf(settings.leadDays.toString()) }
     var supply by rememberSaveable { mutableStateOf(settings.supplyDays.toString()) }
+    var notify by rememberSaveable { mutableStateOf(settings.notify) }
+    var notifyTime by rememberSaveable { mutableStateOf(formatTime(settings.notifyMinutes)) }
+    val notifyValue = parseTime(notifyTime)
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<MedicationFile?>(null) }
 
@@ -75,6 +83,11 @@ fun SettingsScreen(
     val supplyValue = parseWhole(supply, 1, 730)
 
     val context = LocalContext.current
+    // Ab Android 13 müssen Benachrichtigungen erlaubt werden; der Stand wird nach jeder Antwort neu gelesen.
+    var allowed by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
     val msgSaved = stringResource(R.string.backup_done)
     val msgFailed = stringResource(R.string.backup_failed)
     val msgUnreadable = stringResource(R.string.backup_unreadable)
@@ -150,10 +163,49 @@ fun SettingsScreen(
                 whole = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.notify_switch), modifier = Modifier.weight(1f))
+                Switch(
+                    checked = notify,
+                    onCheckedChange = {
+                        notify = it
+                        if (it && !allowed && Build.VERSION.SDK_INT >= 33) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                )
+            }
+            if (notify) {
+                TimeField(
+                    notifyTime,
+                    { notifyTime = it },
+                    stringResource(R.string.field_notify_time),
+                    showErrors && notifyValue == null,
+                    Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.notify_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!allowed) {
+                    Text(
+                        text = stringResource(R.string.notify_blocked),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    OutlinedButton(onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        )
+                    }) { Text(stringResource(R.string.notify_open_settings)) }
+                }
+            }
             Button(
                 onClick = {
                     if (morningValue != null && noonValue != null && eveningValue != null &&
-                        leadValue != null && supplyValue != null
+                        leadValue != null && supplyValue != null && (!notify || notifyValue != null)
                     ) {
                         onSave(
                             settings.copy(
@@ -163,6 +215,8 @@ fun SettingsScreen(
                                 showNoon = showNoon,
                                 leadDays = leadValue,
                                 supplyDays = supplyValue,
+                                notify = notify,
+                                notifyMinutes = notifyValue ?: settings.notifyMinutes,
                             )
                         )
                     } else {
