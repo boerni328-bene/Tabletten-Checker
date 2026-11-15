@@ -82,7 +82,7 @@
     <string name="settings_title">Einstellungen</string>
     <string name="settings_times">Uhrzeiten der Einnahme</string>
     <string name="settings_times_hint">Zu diesen Uhrzeiten sinkt der Bestand von selbst.</string>
-    <string name="error_time">z. B. 8:00</string>
+    <string name="ok">OK</string>
     <string name="show_noon">Mittags als Einnahmezeit</string>
     <string name="settings_reorder">Nachkauf</string>
     <string name="field_default_lead">Nachkaufen (Tage vor dem Aufbrauchen)</string>

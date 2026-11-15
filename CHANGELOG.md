@@ -3,6 +3,11 @@
 Alle wichtigen Änderungen an der App werden hier festgehalten.
 Die neueste Version steht oben. Versionsschema: Major.Minor.Patch.
 
+## [0.4.1] – 2026-11-15 (versionCode 5)
+
+### Verbessert
+- **Uhrzeiten einfacher einstellen:** Antippen einer Uhrzeit in den Einstellungen (morgens, mittags, abends, Hinweis) öffnet eine Auswahl mit getrenntem Stunden- und Minutenfeld. Ein Doppelpunkt muss nicht mehr eingetippt werden.
+
 ## [0.4.0] – 2026-11-14 (versionCode 4)
 
 ### Neu

@@ -9,7 +9,9 @@ import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -35,9 +36,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,7 +51,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tablettenchecker.app.R
 import com.tablettenchecker.app.data.AppSettings
@@ -64,21 +67,17 @@ fun SettingsScreen(
     onReadBackup: (Uri) -> MedicationFile?,
     onRestore: (MedicationFile) -> Unit,
 ) {
-    var morning by rememberSaveable { mutableStateOf(formatTime(settings.morningMinutes)) }
-    var noon by rememberSaveable { mutableStateOf(formatTime(settings.noonMinutes)) }
-    var evening by rememberSaveable { mutableStateOf(formatTime(settings.eveningMinutes)) }
+    var morning by rememberSaveable { mutableIntStateOf(settings.morningMinutes) }
+    var noon by rememberSaveable { mutableIntStateOf(settings.noonMinutes) }
+    var evening by rememberSaveable { mutableIntStateOf(settings.eveningMinutes) }
     var showNoon by rememberSaveable { mutableStateOf(settings.showNoon) }
     var lead by rememberSaveable { mutableStateOf(settings.leadDays.toString()) }
     var supply by rememberSaveable { mutableStateOf(settings.supplyDays.toString()) }
     var notify by rememberSaveable { mutableStateOf(settings.notify) }
-    var notifyTime by rememberSaveable { mutableStateOf(formatTime(settings.notifyMinutes)) }
-    val notifyValue = parseTime(notifyTime)
+    var notifyTime by rememberSaveable { mutableIntStateOf(settings.notifyMinutes) }
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<MedicationFile?>(null) }
 
-    val morningValue = parseTime(morning)
-    val noonValue = parseTime(noon)
-    val eveningValue = parseTime(evening)
     val leadValue = parseWhole(lead, 0, 365)
     val supplyValue = parseWhole(supply, 1, 730)
 
@@ -130,11 +129,11 @@ fun SettingsScreen(
         ) {
             Text(stringResource(R.string.settings_times), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TimeField(morning, { morning = it }, stringResource(R.string.field_morning), showErrors && morningValue == null, Modifier.weight(1f))
+                TimeField(morning, { morning = it }, stringResource(R.string.field_morning), Modifier.weight(1f))
                 if (showNoon) {
-                    TimeField(noon, { noon = it }, stringResource(R.string.field_noon), showErrors && noonValue == null, Modifier.weight(1f))
+                    TimeField(noon, { noon = it }, stringResource(R.string.field_noon), Modifier.weight(1f))
                 }
-                TimeField(evening, { evening = it }, stringResource(R.string.field_evening), showErrors && eveningValue == null, Modifier.weight(1f))
+                TimeField(evening, { evening = it }, stringResource(R.string.field_evening), Modifier.weight(1f))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.show_noon), modifier = Modifier.weight(1f))
@@ -180,7 +179,6 @@ fun SettingsScreen(
                     notifyTime,
                     { notifyTime = it },
                     stringResource(R.string.field_notify_time),
-                    showErrors && notifyValue == null,
                     Modifier.fillMaxWidth(),
                 )
                 Text(
@@ -204,19 +202,17 @@ fun SettingsScreen(
             }
             Button(
                 onClick = {
-                    if (morningValue != null && noonValue != null && eveningValue != null &&
-                        leadValue != null && supplyValue != null && (!notify || notifyValue != null)
-                    ) {
+                    if (leadValue != null && supplyValue != null) {
                         onSave(
                             settings.copy(
-                                morningMinutes = morningValue,
-                                noonMinutes = noonValue,
-                                eveningMinutes = eveningValue,
+                                morningMinutes = morning,
+                                noonMinutes = noon,
+                                eveningMinutes = evening,
                                 showNoon = showNoon,
                                 leadDays = leadValue,
                                 supplyDays = supplyValue,
                                 notify = notify,
-                                notifyMinutes = notifyValue ?: settings.notifyMinutes,
+                                notifyMinutes = notifyTime,
                             )
                         )
                     } else {
@@ -263,26 +259,51 @@ fun SettingsScreen(
     }
 }
 
+/** Zeigt eine Uhrzeit; Antippen öffnet die Auswahl mit Stunden- und Minutenfeld (24 Stunden). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimeField(
-    value: String,
-    onValueChange: (String) -> Unit,
+    minutes: Int,
+    onChange: (Int) -> Unit,
     label: String,
-    isError: Boolean,
     modifier: Modifier,
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        isError = isError,
-        supportingText = if (isError) {
-            { Text(stringResource(R.string.error_time)) }
-        } else {
-            null
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier,
-    )
+    var open by rememberSaveable { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = formatTime(minutes),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Fläche über dem Feld fängt das Antippen ab, damit keine Tastatur erscheint.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(onClickLabel = label) { open = true },
+        )
+    }
+    if (open) {
+        val state = rememberTimePickerState(
+            initialHour = minutes / 60,
+            initialMinute = minutes % 60,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(label) },
+            text = { TimeInput(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(state.hour * 60 + state.minute)
+                    open = false
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { open = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 }
